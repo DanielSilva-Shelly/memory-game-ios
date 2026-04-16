@@ -20,21 +20,27 @@ private struct GameScreen: View {
     @State private var showEndState: Bool = false
     @State private var timerPulse: Bool = false
 
-    var body: some View {
-        GeometryReader { geo in
-            let layout = makeLayout(for: geo.size)
-            return AnyView(content(layout: layout))
-        }
-        .navigationBarBackButtonHidden(true)
-        .onChange(of: viewModel.phase) { _, newValue in
-            showEndState = (newValue == .victory || newValue == .timeUp)
-        }
-        .onChange(of: viewModel.timeRemaining) { _, _ in
-            if shouldWarnTimeLow {
-                timerPulse = true
+    var body: AnyView {
+        AnyView(
+            GeometryReader { geo in
+                geometryContent(geo)
             }
-        }
-        .sheet(isPresented: $showEndState) { AnyView(endStateSheet) }
+            .navigationBarBackButtonHidden(true)
+            .onChange(of: viewModel.phase) { _, newValue in
+                showEndState = (newValue == .victory || newValue == .timeUp)
+            }
+            .onChange(of: viewModel.timeRemaining) { _, _ in
+                if shouldWarnTimeLow {
+                    timerPulse = true
+                }
+            }
+            .sheet(isPresented: $showEndState) { AnyView(endStateSheet) }
+        )
+    }
+
+    private func geometryContent(_ geo: GeometryProxy) -> AnyView {
+        let layout = makeLayout(for: geo.size)
+        return content(layout: layout)
     }
 
     private struct Layout: Equatable {
