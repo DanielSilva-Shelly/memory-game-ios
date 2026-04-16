@@ -1,16 +1,24 @@
 import SwiftUI
 
 struct GameView: View {
-    @EnvironmentObject private var settings: SettingsStore
-    @Environment(\.dismiss) private var dismiss
-
     @StateObject private var viewModel: MemoryGameViewModel
-    @State private var showEndState: Bool = false
-    @State private var timerPulse: Bool = false
 
     init(viewModel: MemoryGameViewModel) {
         _viewModel = StateObject(wrappedValue: viewModel)
     }
+
+    var body: some View {
+        GameScreen(viewModel: viewModel)
+    }
+}
+
+private struct GameScreen: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.dismiss) private var dismiss
+
+    @ObservedObject var viewModel: MemoryGameViewModel
+    @State private var showEndState: Bool = false
+    @State private var timerPulse: Bool = false
 
     var body: some View {
         GeometryReader { geo in
