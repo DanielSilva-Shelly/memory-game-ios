@@ -8,31 +8,33 @@ struct GameScreen: View {
     @State private var showEndState: Bool = false
     @State private var timerPulse: Bool = false
 
-    var body: AnyView {
-        AnyView(
-            GeometryReader { geo in
-                geometryContent(geo)
+    var body: some View {
+        GeometryReader { geo in
+            let layout = makeLayout(for: geo.size)
+            VStack(spacing: 14) {
+                TopBarView(viewModel: viewModel, timerPulse: $timerPulse)
+                boardView(layout: layout)
             }
-            .navigationBarBackButtonHidden(true)
-            .onChange(of: viewModel.phase) { _, newValue in
-                showEndState = (newValue == .victory || newValue == .timeUp)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(backgroundGradient)
+        }
+        .navigationBarBackButtonHidden(true)
+        .onChange(of: viewModel.phase) { _, newValue in
+            showEndState = (newValue == .victory || newValue == .timeUp)
+        }
+        .onChange(of: viewModel.timeRemaining) { _, _ in
+            if shouldWarnTimeLow {
+                timerPulse = true
             }
-            .onChange(of: viewModel.timeRemaining) { _, _ in
-                if shouldWarnTimeLow {
-                    timerPulse = true
-                }
-            }
-            .sheet(isPresented: $showEndState) { AnyView(endStateSheet) }
-        )
+        }
+        .sheet(isPresented: $showEndState) {
+            endStateSheet
+        }
     }
 
-    private func geometryContent(_ geo: GeometryProxy) -> AnyView {
-        let layout = makeLayout(for: geo.size)
-        return content(layout: layout)
-    }
+    // MARK: - Layout
 
-    private struct Layout: Equatable {
-        let isPadLike: Bool
+    private struct Layout {
         let spacing: CGFloat
         let boardWidth: CGFloat
         let columns: [GridItem]
@@ -45,9 +47,8 @@ struct GameScreen: View {
         let spacing: CGFloat = isPadLike ? 18 : 12
         let boardMaxWidth: CGFloat = isPadLike ? 980 : 560
         let boardWidth = max(260, min(size.width - 32, boardMaxWidth))
-        let columns = gridColumns(for: size.width, boardWidth: boardWidth, difficulty: viewModel.difficulty, spacing: spacing)
+        let columns = gridColumns(for: size.width, boardWidth: boardWidth, spacing: spacing)
         return Layout(
-            isPadLike: isPadLike,
             spacing: spacing,
             boardWidth: boardWidth,
             columns: columns,
@@ -56,50 +57,56 @@ struct GameScreen: View {
         )
     }
 
-    private func content(layout: Layout) -> AnyView {
-        AnyView(
-            VStack(spacing: 14) {
-                topBar
-                board(layout: layout)
+    private func gridColumns(for screenWidth: CGFloat, boardWidth: CGFloat, spacing: CGFloat) -> [GridItem] {
+        let isPadLike = screenWidth >= 700
+        let count: Int
+        if isPadLike {
+            let wide = screenWidth >= 1000
+            switch viewModel.difficulty {
+            case .facil:  count = wide ? 5 : 4
+            case .medio:  count = wide ? 6 : 5
+            case .dificil: count = wide ? 6 : 5
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(background)
-        )
+        } else {
+            switch viewModel.difficulty {
+            case .facil:  count = 4
+            case .medio:  count = 4
+            case .dificil: count = 5
+            }
+        }
+        let minCard = max(92, (boardWidth - CGFloat(count - 1) * spacing) / CGFloat(count))
+        return Array(repeating: GridItem(.flexible(minimum: minCard), spacing: spacing), count: count)
     }
 
-    private func board(layout: Layout) -> AnyView {
-        AnyView(
-            ScrollView {
-                LazyVGrid(columns: layout.columns, spacing: layout.spacing) {
-                    ForEach(viewModel.cards) { card in
-                        cardButton(card, disabled: card.isMatched || viewModel.phase != .playing)
+    // MARK: - Board
+
+    private func boardView(layout: Layout) -> some View {
+        ScrollView {
+            LazyVGrid(columns: layout.columns, spacing: layout.spacing) {
+                ForEach(viewModel.cards) { card in
+                    Button {
+                        viewModel.flip(card, efeitosSonorosAtivos: settings.efeitosSonorosAtivos)
+                    } label: {
+                        CardView(
+                            card: card,
+                            isMismatched: viewModel.mismatchedCardIDs.contains(card.id),
+                            isJustMatched: viewModel.matchedFlashCardIDs.contains(card.id)
+                        )
                     }
+                    .buttonStyle(.plain)
+                    .disabled(card.isMatched || viewModel.phase != .playing)
+                    .accessibilityLabel(card.isMatched ? "Par encontrado" : "Carta")
+                    .accessibilityHint("Toque para virar")
                 }
-                .frame(width: layout.boardWidth)
-                .padding(.top, layout.topPadding)
-                .padding(.bottom, layout.bottomPadding)
-                .frame(maxWidth: .infinity)
             }
-        )
+            .frame(width: layout.boardWidth)
+            .padding(.top, layout.topPadding)
+            .padding(.bottom, layout.bottomPadding)
+            .frame(maxWidth: .infinity)
+        }
     }
 
-    private func cardButton(_ card: MemoryCard, disabled: Bool) -> AnyView {
-        AnyView(
-            Button {
-                viewModel.flip(card, efeitosSonorosAtivos: settings.efeitosSonorosAtivos)
-            } label: {
-                CardView(
-                    card: card,
-                    isMismatched: viewModel.mismatchedCardIDs.contains(card.id),
-                    isJustMatched: viewModel.matchedFlashCardIDs.contains(card.id)
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(disabled)
-            .accessibilityLabel(card.isMatched ? "Par encontrado" : "Carta")
-            .accessibilityHint("Toque para virar")
-        )
-    }
+    // MARK: - End State
 
     private var endStateSheet: some View {
         let isVictory = (viewModel.phase == .victory)
@@ -109,7 +116,9 @@ struct GameScreen: View {
             themeTitle: viewModel.theme.titulo,
             movesText: "\(viewModel.moves)",
             timeTitle: isVictory ? "Tempo restante" : "Tempo gasto",
-            timeText: isVictory ? formatTime(viewModel.timeRemaining) : formatTime(viewModel.difficulty.tempoTotal),
+            timeText: isVictory
+                ? formatTime(viewModel.timeRemaining)
+                : formatTime(viewModel.difficulty.tempoTotal),
             onPlayAgain: {
                 showEndState = false
                 viewModel.newGame()
@@ -121,116 +130,132 @@ struct GameScreen: View {
         )
     }
 
-    private var topBar: AnyView {
-        AnyView(
-            VStack(spacing: 10) {
-                HStack(spacing: 12) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                            .font(.headline.weight(.bold))
-                            .frame(width: 44, height: 44)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .accessibilityLabel("Voltar")
+    // MARK: - Helpers
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("\(viewModel.theme.titulo) • \(viewModel.difficulty.titulo)")
-                            .font(.headline.weight(.semibold))
-                        Text(statusLine)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        viewModel.newGame()
-                    } label: {
-                        Image(systemName: "arrow.counterclockwise")
-                            .font(.headline.weight(.bold))
-                            .frame(width: 44, height: 44)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .accessibilityLabel("Recomeçar")
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-
-                HStack(spacing: 12) {
-                    pill(title: "Jogadas", value: "\(viewModel.moves)", icon: "arrow.left.arrow.right")
-                    timerPill
-                    pill(title: "Pares", value: "\(viewModel.matchedPairs)/\(viewModel.difficulty.numeroDeCartas/2)", icon: "checkmark.circle.fill")
-                }
-                .padding(.horizontal, 16)
-
-                bestScoreLine
-                    .padding(.horizontal, 16)
-            }
-        )
+    private var shouldWarnTimeLow: Bool {
+        let threshold: Int
+        switch viewModel.difficulty {
+        case .facil:   threshold = 20
+        case .medio:   threshold = 45
+        case .dificil: threshold = 60
+        }
+        return viewModel.timeRemaining > 0
+            && viewModel.timeRemaining <= threshold
+            && viewModel.phase == .playing
     }
 
-    private var statusLine: String {
-        "Encontra todos os pares antes do tempo acabar"
+    private var backgroundGradient: some View {
+        LinearGradient(
+            colors: [
+                Color(red: 0.94, green: 1.0, blue: 0.96),
+                Color(red: 0.93, green: 0.96, blue: 1.0)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        String(format: "%d:%02d", seconds / 60, seconds % 60)
+    }
+}
+
+// MARK: - TopBarView
+
+private struct TopBarView: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject var viewModel: MemoryGameViewModel
+    @Binding var timerPulse: Bool
+
+    var body: some View {
+        VStack(spacing: 10) {
+            navigationRow
+            pillsRow
+            bestScoreLine
+                .padding(.horizontal, 16)
+        }
+    }
+
+    private var navigationRow: some View {
+        HStack(spacing: 12) {
+            Button { dismiss() } label: {
+                Image(systemName: "chevron.left")
+                    .font(.headline.weight(.bold))
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .accessibilityLabel("Voltar")
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(viewModel.theme.titulo) • \(viewModel.difficulty.titulo)")
+                    .font(.headline.weight(.semibold))
+                Text("Encontra todos os pares antes do tempo acabar")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button { viewModel.newGame() } label: {
+                Image(systemName: "arrow.counterclockwise")
+                    .font(.headline.weight(.bold))
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .accessibilityLabel("Recomeçar")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private var pillsRow: some View {
+        HStack(spacing: 12) {
+            StatPill(title: "Jogadas", value: "\(viewModel.moves)", icon: "arrow.left.arrow.right")
+            TimerPillView(viewModel: viewModel, timerPulse: $timerPulse)
+            StatPill(
+                title: "Pares",
+                value: "\(viewModel.matchedPairs)/\(viewModel.difficulty.numeroDeCartas / 2)",
+                icon: "checkmark.circle.fill"
+            )
+        }
+        .padding(.horizontal, 16)
     }
 
     private var bestScoreLine: some View {
-        let score = ScoreStore.load(difficulty: viewModel.difficulty, theme: viewModel.theme)
-        let bestMovesText: String? = score.bestMoves.map { "\($0) jogadas" }
-        let bestTimeText: String? = score.bestTimeSeconds.map { formatTime($0) }
-
-        let text: String = {
-            switch (bestMovesText, bestTimeText) {
-            case (nil, nil):
-                return " "
-            case let (m?, nil):
-                return "Melhor: \(m)"
-            case let (nil, t?):
-                return "Melhor tempo: \(t)"
-            case let (m?, t?):
-                return "Melhor: \(m) • Melhor tempo: \(t)"
-            }
-        }()
-
-        return Text(text)
+        Text(bestScoreText)
             .font(.footnote.weight(.semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 6)
     }
 
+    private var bestScoreText: String {
+        let score = ScoreStore.load(difficulty: viewModel.difficulty, theme: viewModel.theme)
+        let movesStr = score.bestMoves.map { "\($0) jogadas" }
+        let timeStr = score.bestTimeSeconds.map { formatTime($0) }
+        switch (movesStr, timeStr) {
+        case (nil, nil):          return " "
+        case let (m?, nil):       return "Melhor: \(m)"
+        case let (nil, t?):       return "Melhor tempo: \(t)"
+        case let (m?, t?):        return "Melhor: \(m) • Melhor tempo: \(t)"
+        }
+    }
+
     private func formatTime(_ seconds: Int) -> String {
-        let m = seconds / 60
-        let s = seconds % 60
-        return String(format: "%d:%02d", m, s)
+        String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
+}
 
-    private func gridColumns(for screenWidth: CGFloat, boardWidth: CGFloat, difficulty: Difficulty, spacing: CGFloat) -> [GridItem] {
-        let isPadLike = screenWidth >= 700
+// MARK: - StatPill
 
-        let columns: Int = {
-            if isPadLike {
-                let isLandscapeWide = screenWidth >= 1000
-                switch difficulty {
-                case .facil: return isLandscapeWide ? 5 : 4
-                case .medio: return isLandscapeWide ? 6 : 5
-                case .dificil: return isLandscapeWide ? 6 : 5
-                }
-            } else {
-                switch difficulty {
-                case .facil: return 4
-                case .medio: return 4
-                case .dificil: return 5
-                }
-            }
-        }()
+private struct StatPill: View {
+    let title: String
+    let value: String
+    let icon: String
 
-        let minCard = max(92, (boardWidth - CGFloat(columns - 1) * spacing) / CGFloat(columns))
-        return Array(repeating: GridItem(.flexible(minimum: minCard), spacing: spacing), count: columns)
-    }
-
-    private func pill(title: String, value: String, icon: String) -> some View {
+    var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .font(.headline.weight(.bold))
@@ -248,21 +273,17 @@ struct GameScreen: View {
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
+}
 
-    private var shouldWarnTimeLow: Bool {
-        let threshold: Int = {
-            switch viewModel.difficulty {
-            case .facil: return 20
-            case .medio: return 45
-            case .dificil: return 60
-            }
-        }()
-        return viewModel.timeRemaining > 0 && viewModel.timeRemaining <= threshold && viewModel.phase == .playing
-    }
+// MARK: - TimerPillView
 
-    private var timerPill: some View {
+private struct TimerPillView: View {
+    @ObservedObject var viewModel: MemoryGameViewModel
+    @Binding var timerPulse: Bool
+
+    var body: some View {
         let isLow = shouldWarnTimeLow
-        return HStack(spacing: 10) {
+        HStack(spacing: 10) {
             Image(systemName: "timer")
                 .font(.headline.weight(.bold))
             VStack(alignment: .leading, spacing: 2) {
@@ -271,43 +292,54 @@ struct GameScreen: View {
                     .foregroundStyle(.secondary)
                 Text(formatTime(viewModel.timeRemaining))
                     .font(.system(.title3, design: .monospaced).weight(.heavy))
-                    .foregroundStyle(isLow ? .orange : .primary)
+                    .foregroundStyle(isLow ? Color.orange : Color.primary)
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(isLow ? Color.orange.opacity(0.55) : Color.white.opacity(0.0), lineWidth: 2)
-                )
-        )
+        .background(timerBackground(isLow: isLow))
         .scaleEffect(isLow && timerPulse ? 1.015 : 1.0)
-        .animation(isLow ? .easeInOut(duration: 1.0).repeatForever(autoreverses: true) : .default, value: timerPulse)
-        .onAppear {
-            if isLow { timerPulse = true }
-        }
-        .onChange(of: isLow) { _, newValue in
-            timerPulse = newValue
-        }
+        .animation(timerAnimation(isLow: isLow), value: timerPulse)
+        .onAppear { if isLow { timerPulse = true } }
+        .onChange(of: isLow) { _, newValue in timerPulse = newValue }
     }
 
-    private var background: some View {
-        LinearGradient(
-            colors: [
-                Color(red: 0.94, green: 1.0, blue: 0.96),
-                Color(red: 0.93, green: 0.96, blue: 1.0)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
+    private func timerBackground(isLow: Bool) -> some View {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .fill(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(
+                        isLow ? Color.orange.opacity(0.55) : Color.white.opacity(0.0),
+                        lineWidth: 2
+                    )
+            )
+    }
+
+    private func timerAnimation(isLow: Bool) -> Animation {
+        isLow ? .easeInOut(duration: 1.0).repeatForever(autoreverses: true) : .default
+    }
+
+    private var shouldWarnTimeLow: Bool {
+        let threshold: Int
+        switch viewModel.difficulty {
+        case .facil:   threshold = 20
+        case .medio:   threshold = 45
+        case .dificil: threshold = 60
+        }
+        return viewModel.timeRemaining > 0
+            && viewModel.timeRemaining <= threshold
+            && viewModel.phase == .playing
+    }
+
+    private func formatTime(_ seconds: Int) -> String {
+        String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 }
+
+// MARK: - CardView
 
 private struct CardView: View {
     let card: MemoryCard
@@ -317,27 +349,25 @@ private struct CardView: View {
     var body: some View {
         GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
-            let emojiSize = max(54, side * 0.68)
-
             ZStack {
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(card.isFaceUp || card.isMatched ? .white.opacity(0.90) : Color.blue.opacity(0.82))
+                    .fill(card.isFaceUp || card.isMatched ? Color.white.opacity(0.90) : Color.blue.opacity(0.82))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .strokeBorder(borderColor.opacity(0.75), lineWidth: borderLineWidth)
                     )
-                    .shadow(color: .black.opacity(0.10), radius: 14, x: 0, y: 8)
+                    .shadow(color: Color.black.opacity(0.10), radius: 14, x: 0, y: 8)
 
                 if card.isFaceUp || card.isMatched {
                     Text(card.face)
-                        .font(.system(size: emojiSize, weight: .heavy))
+                        .font(.system(size: max(54, side * 0.68), weight: .heavy))
                         .minimumScaleFactor(0.5)
                         .lineLimit(1)
                         .transition(.scale.combined(with: .opacity))
                 } else {
                     Image(systemName: "sparkles")
                         .font(.system(size: max(24, side * 0.24), weight: .bold))
-                        .foregroundStyle(.white.opacity(0.92))
+                        .foregroundStyle(Color.white.opacity(0.92))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -361,9 +391,6 @@ private struct CardView: View {
     }
 
     private var borderLineWidth: CGFloat {
-        if isMismatched { return 4 }
-        if card.isMatched || isJustMatched { return 4 }
-        return 2
+        (isMismatched || card.isMatched || isJustMatched) ? 4 : 2
     }
 }
-
