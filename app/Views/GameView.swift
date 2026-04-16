@@ -23,7 +23,7 @@ private struct GameScreen: View {
     var body: some View {
         GeometryReader { geo in
             let layout = makeLayout(for: geo.size)
-            content(layout: layout)
+            return AnyView(content(layout: layout))
         }
         .navigationBarBackButtonHidden(true)
         .onChange(of: viewModel.phase) { _, newValue in
@@ -34,7 +34,7 @@ private struct GameScreen: View {
                 timerPulse = true
             }
         }
-        .sheet(isPresented: $showEndState) { endStateSheet }
+        .sheet(isPresented: $showEndState) { AnyView(endStateSheet) }
     }
 
     private struct Layout: Equatable {
@@ -62,44 +62,49 @@ private struct GameScreen: View {
         )
     }
 
-    @ViewBuilder
-    private func content(layout: Layout) -> some View {
-        VStack(spacing: 14) {
-            topBar
-            board(layout: layout)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(background)
-    }
-
-    private func board(layout: Layout) -> some View {
-        ScrollView {
-            LazyVGrid(columns: layout.columns, spacing: layout.spacing) {
-                ForEach(viewModel.cards) { card in
-                    cardButton(card, disabled: card.isMatched || viewModel.phase != .playing)
-                }
+    private func content(layout: Layout) -> AnyView {
+        AnyView(
+            VStack(spacing: 14) {
+                topBar
+                board(layout: layout)
             }
-            .frame(width: layout.boardWidth)
-            .padding(.top, layout.topPadding)
-            .padding(.bottom, layout.bottomPadding)
-            .frame(maxWidth: .infinity)
-        }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(background)
+        )
     }
 
-    private func cardButton(_ card: MemoryCard, disabled: Bool) -> some View {
-        Button {
-            viewModel.flip(card, efeitosSonorosAtivos: settings.efeitosSonorosAtivos)
-        } label: {
-            CardView(
-                card: card,
-                isMismatched: viewModel.mismatchedCardIDs.contains(card.id),
-                isJustMatched: viewModel.matchedFlashCardIDs.contains(card.id)
-            )
-        }
-        .buttonStyle(.plain)
-        .disabled(disabled)
-        .accessibilityLabel(card.isMatched ? "Par encontrado" : "Carta")
-        .accessibilityHint("Toque para virar")
+    private func board(layout: Layout) -> AnyView {
+        AnyView(
+            ScrollView {
+                LazyVGrid(columns: layout.columns, spacing: layout.spacing) {
+                    ForEach(viewModel.cards) { card in
+                        cardButton(card, disabled: card.isMatched || viewModel.phase != .playing)
+                    }
+                }
+                .frame(width: layout.boardWidth)
+                .padding(.top, layout.topPadding)
+                .padding(.bottom, layout.bottomPadding)
+                .frame(maxWidth: .infinity)
+            }
+        )
+    }
+
+    private func cardButton(_ card: MemoryCard, disabled: Bool) -> AnyView {
+        AnyView(
+            Button {
+                viewModel.flip(card, efeitosSonorosAtivos: settings.efeitosSonorosAtivos)
+            } label: {
+                CardView(
+                    card: card,
+                    isMismatched: viewModel.mismatchedCardIDs.contains(card.id),
+                    isJustMatched: viewModel.matchedFlashCardIDs.contains(card.id)
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(disabled)
+            .accessibilityLabel(card.isMatched ? "Par encontrado" : "Carta")
+            .accessibilityHint("Toque para virar")
+        )
     }
 
     private var endStateSheet: some View {
@@ -122,52 +127,54 @@ private struct GameScreen: View {
         )
     }
 
-    private var topBar: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 12) {
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.headline.weight(.bold))
-                        .frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+    private var topBar: AnyView {
+        AnyView(
+            VStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.headline.weight(.bold))
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .accessibilityLabel("Voltar")
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(viewModel.theme.titulo) • \(viewModel.difficulty.titulo)")
+                            .font(.headline.weight(.semibold))
+                        Text(statusLine)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        viewModel.newGame()
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .font(.headline.weight(.bold))
+                            .frame(width: 44, height: 44)
+                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .accessibilityLabel("Recomeçar")
                 }
-                .accessibilityLabel("Voltar")
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(viewModel.theme.titulo) • \(viewModel.difficulty.titulo)")
-                        .font(.headline.weight(.semibold))
-                    Text(statusLine)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-
-                Spacer()
-
-                Button {
-                    viewModel.newGame()
-                } label: {
-                    Image(systemName: "arrow.counterclockwise")
-                        .font(.headline.weight(.bold))
-                        .frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .accessibilityLabel("Recomeçar")
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-
-            HStack(spacing: 12) {
-                pill(title: "Jogadas", value: "\(viewModel.moves)", icon: "arrow.left.arrow.right")
-                timerPill
-                pill(title: "Pares", value: "\(viewModel.matchedPairs)/\(viewModel.difficulty.numeroDeCartas/2)", icon: "checkmark.circle.fill")
-            }
-            .padding(.horizontal, 16)
-
-            bestScoreLine
                 .padding(.horizontal, 16)
-        }
+                .padding(.top, 8)
+
+                HStack(spacing: 12) {
+                    pill(title: "Jogadas", value: "\(viewModel.moves)", icon: "arrow.left.arrow.right")
+                    timerPill
+                    pill(title: "Pares", value: "\(viewModel.matchedPairs)/\(viewModel.difficulty.numeroDeCartas/2)", icon: "checkmark.circle.fill")
+                }
+                .padding(.horizontal, 16)
+
+                bestScoreLine
+                    .padding(.horizontal, 16)
+            }
+        )
     }
 
     private var statusLine: String {
