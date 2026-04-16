@@ -14,41 +14,8 @@ struct GameView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let isPadLike = geo.size.width >= 700
-            let spacing: CGFloat = isPadLike ? 18 : 12
-            let boardMaxWidth: CGFloat = isPadLike ? 980 : 560
-            let boardWidth = max(260, min(geo.size.width - 32, boardMaxWidth))
-            let columns = gridColumns(for: geo.size.width, boardWidth: boardWidth, difficulty: viewModel.difficulty, spacing: spacing)
-
-            VStack(spacing: 14) {
-                topBar
-
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: spacing) {
-                        ForEach(viewModel.cards) { card in
-                            Button {
-                                viewModel.flip(card, efeitosSonorosAtivos: settings.efeitosSonorosAtivos)
-                            } label: {
-                                CardView(
-                                    card: card,
-                                    isMismatched: viewModel.mismatchedCardIDs.contains(card.id),
-                                    isJustMatched: viewModel.matchedFlashCardIDs.contains(card.id)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .disabled(card.isMatched || viewModel.phase != .playing)
-                            .accessibilityLabel(card.isMatched ? "Par encontrado" : "Carta")
-                            .accessibilityHint("Toque para virar")
-                        }
-                    }
-                    .frame(width: boardWidth)
-                    .padding(.top, isPadLike ? 14 : 10)
-                    .padding(.bottom, isPadLike ? 28 : 20)
-                    .frame(maxWidth: .infinity)
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(background)
+            let layout = makeLayout(for: geo.size)
+            content(layout: layout)
         }
         .navigationBarBackButtonHidden(true)
         .onChange(of: viewModel.phase) { _, newValue in
@@ -59,25 +26,92 @@ struct GameView: View {
                 timerPulse = true
             }
         }
-        .sheet(isPresented: $showEndState) {
-            let isVictory = (viewModel.phase == .victory)
-            VictoryView(
-                state: isVictory ? .victory : .timeUp,
-                difficultyTitle: viewModel.difficulty.titulo,
-                themeTitle: viewModel.theme.titulo,
-                movesText: "\(viewModel.moves)",
-                timeTitle: isVictory ? "Tempo restante" : "Tempo gasto",
-                timeText: isVictory ? formatTime(viewModel.timeRemaining) : formatTime(viewModel.difficulty.tempoTotal),
-                onPlayAgain: {
-                    showEndState = false
-                    viewModel.newGame()
-                },
-                onGoHome: {
-                    showEndState = false
-                    dismiss()
+        .sheet(isPresented: $showEndState) { endStateSheet }
+    }
+
+    private struct Layout: Equatable {
+        let isPadLike: Bool
+        let spacing: CGFloat
+        let boardWidth: CGFloat
+        let columns: [GridItem]
+        let topPadding: CGFloat
+        let bottomPadding: CGFloat
+    }
+
+    private func makeLayout(for size: CGSize) -> Layout {
+        let isPadLike = size.width >= 700
+        let spacing: CGFloat = isPadLike ? 18 : 12
+        let boardMaxWidth: CGFloat = isPadLike ? 980 : 560
+        let boardWidth = max(260, min(size.width - 32, boardMaxWidth))
+        let columns = gridColumns(for: size.width, boardWidth: boardWidth, difficulty: viewModel.difficulty, spacing: spacing)
+        return Layout(
+            isPadLike: isPadLike,
+            spacing: spacing,
+            boardWidth: boardWidth,
+            columns: columns,
+            topPadding: isPadLike ? 14 : 10,
+            bottomPadding: isPadLike ? 28 : 20
+        )
+    }
+
+    @ViewBuilder
+    private func content(layout: Layout) -> some View {
+        VStack(spacing: 14) {
+            topBar
+            board(layout: layout)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(background)
+    }
+
+    private func board(layout: Layout) -> some View {
+        ScrollView {
+            LazyVGrid(columns: layout.columns, spacing: layout.spacing) {
+                ForEach(viewModel.cards) { card in
+                    cardButton(card, disabled: card.isMatched || viewModel.phase != .playing)
                 }
+            }
+            .frame(width: layout.boardWidth)
+            .padding(.top, layout.topPadding)
+            .padding(.bottom, layout.bottomPadding)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func cardButton(_ card: MemoryCard, disabled: Bool) -> some View {
+        Button {
+            viewModel.flip(card, efeitosSonorosAtivos: settings.efeitosSonorosAtivos)
+        } label: {
+            CardView(
+                card: card,
+                isMismatched: viewModel.mismatchedCardIDs.contains(card.id),
+                isJustMatched: viewModel.matchedFlashCardIDs.contains(card.id)
             )
         }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .accessibilityLabel(card.isMatched ? "Par encontrado" : "Carta")
+        .accessibilityHint("Toque para virar")
+    }
+
+    private var endStateSheet: some View {
+        let isVictory = (viewModel.phase == .victory)
+        return VictoryView(
+            state: isVictory ? .victory : .timeUp,
+            difficultyTitle: viewModel.difficulty.titulo,
+            themeTitle: viewModel.theme.titulo,
+            movesText: "\(viewModel.moves)",
+            timeTitle: isVictory ? "Tempo restante" : "Tempo gasto",
+            timeText: isVictory ? formatTime(viewModel.timeRemaining) : formatTime(viewModel.difficulty.tempoTotal),
+            onPlayAgain: {
+                showEndState = false
+                viewModel.newGame()
+            },
+            onGoHome: {
+                showEndState = false
+                dismiss()
+            }
+        )
     }
 
     private var topBar: some View {
