@@ -153,13 +153,7 @@ private struct GameScreenBody: View {
     }
 
     private var bgGradient: some View {
-        LinearGradient(
-            colors: [Color(red: 0.99, green: 0.97, blue: 0.95),
-                     Color(red: 0.95, green: 0.95, blue: 1.00)],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
+        DS.background.ignoresSafeArea()
     }
 }
 
@@ -219,9 +213,7 @@ private struct TopBarView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(viewModel.theme.titulo + " • " + viewModel.difficulty.titulo)
                 .font(.headline.weight(.semibold))
-            Text("Encontra todos os pares antes do tempo acabar")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DS.textPrimary)
         }
     }
 
@@ -251,7 +243,7 @@ private struct TopBarView: View {
     private var scoreLine: some View {
         Text(scoreText)
             .font(.footnote.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DS.textTertiary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 6)
     }
@@ -283,22 +275,24 @@ private struct StatPill: View {
         HStack(spacing: 8) {
             Image(systemName: icon)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color(red: 1.0, green: 0.36, blue: 0.30))
+                .foregroundStyle(DS.accent)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color(red: 0.52, green: 0.49, blue: 0.46))
+                    .foregroundStyle(DS.textTertiary)
                     .textCase(.uppercase)
                     .tracking(0.3)
-                Text(value).font(.subheadline.weight(.heavy))
+                Text(value)
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(DS.textPrimary)
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
+        .background(DS.surface, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 3)
     }
 }
 
@@ -320,16 +314,16 @@ private struct TimerPillView: View {
         HStack(spacing: 8) {
             Image(systemName: "timer")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(isLow ? Color.orange : Color(red: 1.0, green: 0.36, blue: 0.30))
+                .foregroundStyle(isLow ? Color.orange : DS.accent)
             VStack(alignment: .leading, spacing: 1) {
                 Text("Tempo")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(Color(red: 0.52, green: 0.49, blue: 0.46))
+                    .foregroundStyle(DS.textTertiary)
                     .textCase(.uppercase)
                     .tracking(0.3)
                 Text(timeString(viewModel.timeRemaining))
-                    .font(.system(.subheadline, design: .monospaced).weight(.heavy))
-                    .foregroundStyle(isLow ? Color.orange : Color.primary)
+                    .font(.system(.body, design: .monospaced).weight(.bold))
+                    .foregroundStyle(isLow ? Color.orange : DS.textPrimary)
             }
             Spacer(minLength: 0)
         }
@@ -341,12 +335,12 @@ private struct TimerPillView: View {
 
     private var pillBackground: some View {
         RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(Color.white)
-            .shadow(color: isLow ? Color.orange.opacity(0.18) : .black.opacity(0.06),
+            .fill(DS.surface)
+            .shadow(color: isLow ? Color.orange.opacity(0.15) : .black.opacity(0.05),
                     radius: 8, x: 0, y: 3)
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(isLow ? Color.orange.opacity(0.50) : Color.clear,
+                    .strokeBorder(isLow ? Color.orange.opacity(0.45) : Color.clear,
                                   lineWidth: 1.5)
             )
     }
@@ -422,8 +416,8 @@ private struct CardView: View {
             )
             .shadow(
                 color: card.isFaceUp || card.isMatched
-                    ? .black.opacity(0.07)
-                    : Color(red: 1.0, green: 0.36, blue: 0.30).opacity(0.22),
+                    ? .black.opacity(0.06)
+                    : DS.accent.opacity(0.20),
                 radius: 10, x: 0, y: 5
             )
     }

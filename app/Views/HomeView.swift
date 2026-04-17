@@ -21,7 +21,7 @@ struct HomeView: View {
                 .padding(.vertical, 24)
                 .frame(maxWidth: .infinity)
             }
-            .background(background)
+            .background(DS.background.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
         }
         .sheet(isPresented: $showSettings) {
@@ -38,10 +38,11 @@ struct HomeView: View {
                 .font(.system(size: 52))
             Text("Jogo da Memória")
                 .font(.largeTitle.weight(.heavy))
+                .foregroundStyle(DS.textPrimary)
                 .multilineTextAlignment(.center)
             Text("Encontra os pares e diverte-te!")
                 .font(.subheadline)
-                .foregroundStyle(warmGray)
+                .foregroundStyle(DS.textSecondary)
         }
         .padding(.top, 8)
         .padding(.bottom, 4)
@@ -55,7 +56,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Dificuldade", systemImage: "slider.horizontal.3")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(warmGray)
+                    .foregroundStyle(DS.textSecondary)
                     .textCase(.uppercase)
                     .tracking(0.4)
 
@@ -70,7 +71,7 @@ struct HomeView: View {
 
                 Text(selectedDifficulty.subtitulo)
                     .font(.footnote)
-                    .foregroundStyle(warmGray)
+                    .foregroundStyle(DS.textSecondary)
                     .padding(.top, 2)
             }
         }
@@ -83,7 +84,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Label("Tema", systemImage: "face.smiling")
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(warmGray)
+                    .foregroundStyle(DS.textSecondary)
                     .textCase(.uppercase)
                     .tracking(0.4)
 
@@ -111,7 +112,7 @@ struct HomeView: View {
                     .font(.title3)
                     .frame(width: 40, height: 40)
                     .background(
-                        accentColor.opacity(0.09),
+                        DS.accent.opacity(0.08),
                         in: RoundedRectangle(cornerRadius: 11, style: .continuous)
                     )
             }
@@ -132,7 +133,7 @@ struct HomeView: View {
                 Label("Jogar", systemImage: "play.fill")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(CoralPrimaryButtonStyle())
+            .buttonStyle(PrimaryButtonStyle())
             .accessibilityLabel("Jogar")
 
             Button {
@@ -141,26 +142,9 @@ struct HomeView: View {
                 Label("Definições", systemImage: "gearshape")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(GhostButtonStyle())
+            .buttonStyle(SecondaryButtonStyle())
             .accessibilityLabel("Definições")
         }
-    }
-
-    // MARK: style
-
-    private var accentColor: Color { Color(red: 1.0, green: 0.36, blue: 0.30) }
-    private var warmGray: Color { Color(red: 0.52, green: 0.49, blue: 0.46) }
-
-    private var background: some View {
-        LinearGradient(
-            colors: [
-                Color(red: 0.99, green: 0.97, blue: 0.95),
-                Color(red: 0.95, green: 0.95, blue: 1.00)
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
     }
 }
 
@@ -173,8 +157,8 @@ private struct SoftCard<Content: View>: View {
         content
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
+            .background(DS.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 3)
     }
 }
 
@@ -184,8 +168,6 @@ private struct ChoicePill: View {
     let label: String
     let isSelected: Bool
     let action: () -> Void
-
-    private let coral = Color(red: 1.0, green: 0.36, blue: 0.30)
 
     var body: some View {
         Button(action: action) {
@@ -197,46 +179,14 @@ private struct ChoicePill: View {
                 .padding(.vertical, 9)
                 .frame(maxWidth: .infinity)
                 .background(
-                    isSelected ? coral : Color(red: 0.96, green: 0.95, blue: 0.94),
+                    isSelected ? DS.accent : DS.pillBg,
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                 )
-                .foregroundStyle(isSelected ? .white : Color(red: 0.36, green: 0.33, blue: 0.30))
-                .shadow(color: isSelected ? coral.opacity(0.28) : .clear, radius: 6, x: 0, y: 3)
+                .foregroundStyle(isSelected ? Color.white : DS.textPrimary)
+                .shadow(color: isSelected ? DS.accent.opacity(0.25) : .clear, radius: 5, x: 0, y: 2)
                 .animation(.spring(response: 0.22, dampingFraction: 0.80), value: isSelected)
         }
         .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Button styles
-
-private struct CoralPrimaryButtonStyle: ButtonStyle {
-    private let coral = Color(red: 1.0, green: 0.36, blue: 0.30)
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline.weight(.bold))
-            .padding(.vertical, 16)
-            .padding(.horizontal, 16)
-            .background(coral, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .foregroundStyle(.white)
-            .shadow(color: coral.opacity(configuration.isPressed ? 0.20 : 0.35),
-                    radius: configuration.isPressed ? 5 : 10,
-                    x: 0, y: configuration.isPressed ? 2 : 6)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.85), value: configuration.isPressed)
-    }
-}
-
-private struct GhostButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.semibold))
-            .padding(.vertical, 12)
-            .padding(.horizontal, 16)
-            .foregroundStyle(Color(red: 0.52, green: 0.49, blue: 0.46))
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }
 

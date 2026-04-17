@@ -19,13 +19,7 @@ struct VictoryView: View {
 
     var body: some View {
         ZStack {
-            LinearGradient(
-                colors: [Color(red: 0.99, green: 0.97, blue: 0.95),
-                         Color(red: 0.95, green: 0.95, blue: 1.00)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
+            DS.background.ignoresSafeArea()
 
             VStack(spacing: 22) {
                 heroSection
@@ -51,10 +45,11 @@ struct VictoryView: View {
 
             Text(state == .victory ? "Muito bem!" : "Tempo esgotado")
                 .font(.title.weight(.heavy))
+                .foregroundStyle(DS.textPrimary)
 
             Text("\(themeTitle) • \(difficultyTitle)")
                 .font(.subheadline)
-                .foregroundStyle(warmGray)
+                .foregroundStyle(DS.textSecondary)
         }
         .padding(.top, 4)
     }
@@ -70,14 +65,14 @@ struct VictoryView: View {
                 Divider().padding(.horizontal, 14)
                 Text("Queres tentar outra vez?")
                     .font(.subheadline)
-                    .foregroundStyle(warmGray)
+                    .foregroundStyle(DS.textSecondary)
                     .multilineTextAlignment(.center)
                     .padding(.vertical, 14)
             }
         }
         .frame(maxWidth: 480)
-        .background(Color.white, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .shadow(color: .black.opacity(0.06), radius: 12, x: 0, y: 4)
+        .background(DS.surface, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 3)
     }
 
     // MARK: action buttons
@@ -88,18 +83,16 @@ struct VictoryView: View {
                 Text("Jogar outra vez")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(VictoryPrimaryButtonStyle())
+            .buttonStyle(PrimaryButtonStyle())
 
             Button(action: onGoHome) {
                 Text("Voltar ao início")
                     .frame(maxWidth: .infinity)
             }
-            .buttonStyle(VictorySecondaryButtonStyle())
+            .buttonStyle(SecondaryButtonStyle())
         }
         .frame(maxWidth: 480)
     }
-
-    private var warmGray: Color { Color(red: 0.52, green: 0.49, blue: 0.46) }
 }
 
 // MARK: - StatRow
@@ -112,50 +105,14 @@ private struct StatRow: View {
         HStack {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color(red: 0.52, green: 0.49, blue: 0.46))
+                .foregroundStyle(DS.textSecondary)
             Spacer()
             Text(value)
                 .font(.title3.weight(.heavy))
-                .foregroundStyle(.primary)
+                .foregroundStyle(DS.textPrimary)
         }
         .padding(.vertical, 14)
         .padding(.horizontal, 16)
-    }
-}
-
-// MARK: - Button styles
-
-private struct VictoryPrimaryButtonStyle: ButtonStyle {
-    private let coral = Color(red: 1.0, green: 0.36, blue: 0.30)
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.headline.weight(.bold))
-            .padding(.vertical, 15)
-            .background(coral, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .foregroundStyle(.white)
-            .shadow(color: coral.opacity(configuration.isPressed ? 0.20 : 0.32),
-                    radius: configuration.isPressed ? 5 : 10,
-                    x: 0, y: configuration.isPressed ? 2 : 5)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.85), value: configuration.isPressed)
-    }
-}
-
-private struct VictorySecondaryButtonStyle: ButtonStyle {
-    private let coral = Color(red: 1.0, green: 0.36, blue: 0.30)
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.subheadline.weight(.semibold))
-            .padding(.vertical, 13)
-            .background(
-                coral.opacity(0.08),
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-            )
-            .foregroundStyle(coral)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.spring(response: 0.22, dampingFraction: 0.85), value: configuration.isPressed)
     }
 }
 
