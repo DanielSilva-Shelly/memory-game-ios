@@ -154,8 +154,8 @@ private struct GameScreenBody: View {
 
     private var bgGradient: some View {
         LinearGradient(
-            colors: [Color(red: 0.94, green: 1.0, blue: 0.96),
-                     Color(red: 0.93, green: 0.96, blue: 1.0)],
+            colors: [Color(red: 0.99, green: 0.97, blue: 0.95),
+                     Color(red: 0.95, green: 0.95, blue: 1.00)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -190,7 +190,7 @@ private struct TopBarView: View {
             restartButton
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .padding(.top, 4)
     }
 
     private var backButton: some View {
@@ -198,8 +198,8 @@ private struct TopBarView: View {
             Image(systemName: "chevron.left")
                 .font(.headline.weight(.bold))
                 .frame(width: 44, height: 44)
-                .background(.ultraThinMaterial,
-                            in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 3)
         }
         .accessibilityLabel("Voltar")
     }
@@ -209,8 +209,8 @@ private struct TopBarView: View {
             Image(systemName: "arrow.counterclockwise")
                 .font(.headline.weight(.bold))
                 .frame(width: 44, height: 44)
-                .background(.ultraThinMaterial,
-                            in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .shadow(color: .black.opacity(0.07), radius: 8, x: 0, y: 3)
         }
         .accessibilityLabel("Recomeçar")
     }
@@ -280,19 +280,25 @@ private struct StatPill: View {
     let icon: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon).font(.headline.weight(.bold))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                Text(value).font(.title3.weight(.heavy))
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color(red: 1.0, green: 0.36, blue: 0.30))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.52, green: 0.49, blue: 0.46))
+                    .textCase(.uppercase)
+                    .tracking(0.3)
+                Text(value).font(.subheadline.weight(.heavy))
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial,
-                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.white, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: 3)
     }
 }
 
@@ -311,12 +317,18 @@ private struct TimerPillView: View {
     }
 
     private var pillContent: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "timer").font(.headline.weight(.bold))
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Tempo").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            Image(systemName: "timer")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(isLow ? Color.orange : Color(red: 1.0, green: 0.36, blue: 0.30))
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Tempo")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(Color(red: 0.52, green: 0.49, blue: 0.46))
+                    .textCase(.uppercase)
+                    .tracking(0.3)
                 Text(timeString(viewModel.timeRemaining))
-                    .font(.system(.title3, design: .monospaced).weight(.heavy))
+                    .font(.system(.subheadline, design: .monospaced).weight(.heavy))
                     .foregroundStyle(isLow ? Color.orange : Color.primary)
             }
             Spacer(minLength: 0)
@@ -328,12 +340,14 @@ private struct TimerPillView: View {
     }
 
     private var pillBackground: some View {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(.ultraThinMaterial)
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(Color.white)
+            .shadow(color: isLow ? Color.orange.opacity(0.18) : .black.opacity(0.06),
+                    radius: 8, x: 0, y: 3)
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(isLow ? Color.orange.opacity(0.55) : Color.clear,
-                                  lineWidth: 2)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(isLow ? Color.orange.opacity(0.50) : Color.clear,
+                                  lineWidth: 1.5)
             )
     }
 
@@ -387,16 +401,31 @@ private struct CardView: View {
         .accessibilityAddTraits(.isButton)
     }
 
+    private var cardFill: AnyShapeStyle {
+        if card.isFaceUp || card.isMatched {
+            return AnyShapeStyle(Color.white)
+        }
+        return AnyShapeStyle(LinearGradient(
+            colors: [Color(red: 1.0, green: 0.50, blue: 0.44),
+                     Color(red: 0.93, green: 0.28, blue: 0.24)],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        ))
+    }
+
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: 20, style: .continuous)
-            .fill(card.isFaceUp || card.isMatched
-                  ? Color.white.opacity(0.90)
-                  : Color.blue.opacity(0.82))
+            .fill(cardFill)
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(borderColor.opacity(0.75), lineWidth: borderWidth)
+                    .strokeBorder(borderColor.opacity(0.70), lineWidth: borderWidth)
             )
-            .shadow(color: Color.black.opacity(0.10), radius: 14, x: 0, y: 8)
+            .shadow(
+                color: card.isFaceUp || card.isMatched
+                    ? .black.opacity(0.07)
+                    : Color(red: 1.0, green: 0.36, blue: 0.30).opacity(0.22),
+                radius: 10, x: 0, y: 5
+            )
     }
 
     @ViewBuilder
