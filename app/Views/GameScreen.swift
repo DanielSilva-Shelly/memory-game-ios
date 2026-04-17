@@ -40,7 +40,7 @@ private struct GameScreenBody: View {
     // MARK: main stack
 
     private var mainStack: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: 8) {
             TopBarView(viewModel: viewModel, timerPulse: $timerPulse)
             boardGrid
         }
@@ -50,16 +50,32 @@ private struct GameScreenBody: View {
     // MARK: board
 
     private var boardGrid: some View {
-        let cols = columns
-        let spacing = cardSpacing
-        return ScrollView {
-            LazyVGrid(columns: cols, spacing: spacing) {
-                ForEach(viewModel.cards) { card in
-                    cardCell(card)
+        GeometryReader { geo in
+            let totalCards = viewModel.cards.count
+            let cols = columnCount(for: geo.size)
+            let rows = Int(ceil(Double(totalCards) / Double(cols)))
+            let spacing = gridSpacing
+            let hPad: CGFloat = 12
+            let vPad: CGFloat = 8
+            let cardSize = computeCardSize(available: geo.size, cols: cols, rows: rows,
+                                           spacing: spacing, hPad: hPad, vPad: vPad)
+            let gridCols = Array(
+                repeating: GridItem(.fixed(cardSize), spacing: spacing),
+                count: cols
+            )
+            VStack {
+                Spacer(minLength: 0)
+                LazyVGrid(columns: gridCols, spacing: spacing) {
+                    ForEach(viewModel.cards) { card in
+                        cardCell(card)
+                            .frame(width: cardSize, height: cardSize)
+                    }
                 }
+                .padding(.horizontal, hPad)
+                .padding(.vertical, vPad)
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .frame(width: geo.size.width, height: geo.size.height)
         }
     }
 
@@ -102,22 +118,22 @@ private struct GameScreenBody: View {
 
     private var isPad: Bool { hSizeClass == .regular }
 
-    private var cardSpacing: CGFloat { isPad ? 18 : 12 }
+    private var gridSpacing: CGFloat { isPad ? 12 : 8 }
 
-    private var columns: [GridItem] {
-        let count = columnCount
-        return Array(
-            repeating: GridItem(.flexible(minimum: 80), spacing: cardSpacing),
-            count: count
-        )
+    private func columnCount(for size: CGSize) -> Int {
+        let isLandscape = size.width > size.height
+        switch viewModel.difficulty {
+        case .facil:   return isLandscape ? 5 : 4   // 2 rows / 3 rows
+        case .medio:   return isLandscape ? 6 : 4   // 3 rows / 4 rows
+        case .dificil: return isLandscape ? 5 : 5   // 4 rows / 4 rows
+        }
     }
 
-    private var columnCount: Int {
-        switch viewModel.difficulty {
-        case .facil:   return isPad ? 4 : 4
-        case .medio:   return isPad ? 5 : 4
-        case .dificil: return isPad ? 5 : 5
-        }
+    private func computeCardSize(available: CGSize, cols: Int, rows: Int,
+                                  spacing: CGFloat, hPad: CGFloat, vPad: CGFloat) -> CGFloat {
+        let usableW = available.width  - 2 * hPad - CGFloat(cols - 1) * spacing
+        let usableH = available.height - 2 * vPad - CGFloat(rows - 1) * spacing
+        return max(44, min(usableW / CGFloat(cols), usableH / CGFloat(rows)))
     }
 
     private var timeLow: Bool {
