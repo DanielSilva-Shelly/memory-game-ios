@@ -1,115 +1,89 @@
 import SwiftUI
 
-struct GameScreen: View {
-    @EnvironmentObject private var settings: SettingsStore
-    @Environment(\.dismiss) private var dismiss
+// MARK: - GameScreen
 
+struct GameScreen: View {
     @ObservedObject var viewModel: MemoryGameViewModel
-    @State private var showEndState: Bool = false
-    @State private var timerPulse: Bool = false
 
     var body: some View {
-        GeometryReader { geo in
-            let layout = makeLayout(for: geo.size)
-            VStack(spacing: 14) {
-                TopBarView(viewModel: viewModel, timerPulse: $timerPulse)
-                boardView(layout: layout)
+        GameScreenBody(viewModel: viewModel)
+    }
+}
+
+// MARK: - GameScreenBody
+
+/// Isolates all state so GameScreen.body stays trivially simple (1 expression).
+private struct GameScreenBody: View {
+    @EnvironmentObject private var settings: SettingsStore
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.horizontalSizeClass) private var hSizeClass
+
+    @ObservedObject var viewModel: MemoryGameViewModel
+    @State private var showEndState = false
+    @State private var timerPulse = false
+
+    var body: some View {
+        mainStack
+            .background(bgGradient)
+            .navigationBarBackButtonHidden(true)
+            .onReceive(viewModel.$phase) { phase in
+                if phase == .victory || phase == .timeUp { showEndState = true }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(backgroundGradient)
-        }
-        .navigationBarBackButtonHidden(true)
-        .onChange(of: viewModel.phase) { _, newValue in
-            showEndState = (newValue == .victory || newValue == .timeUp)
-        }
-        .onChange(of: viewModel.timeRemaining) { _, _ in
-            if shouldWarnTimeLow {
-                timerPulse = true
+            .onReceive(viewModel.$timeRemaining) { _ in
+                if timeLow { timerPulse = true }
             }
-        }
-        .sheet(isPresented: $showEndState) {
-            endStateSheet
-        }
+            .sheet(isPresented: $showEndState) {
+                endSheet
+            }
     }
 
-    // MARK: - Layout
+    // MARK: main stack
 
-    private struct Layout {
-        let spacing: CGFloat
-        let boardWidth: CGFloat
-        let columns: [GridItem]
-        let topPadding: CGFloat
-        let bottomPadding: CGFloat
-    }
-
-    private func makeLayout(for size: CGSize) -> Layout {
-        let isPadLike = size.width >= 700
-        let spacing: CGFloat = isPadLike ? 18 : 12
-        let boardMaxWidth: CGFloat = isPadLike ? 980 : 560
-        let boardWidth = max(260, min(size.width - 32, boardMaxWidth))
-        let columns = gridColumns(for: size.width, boardWidth: boardWidth, spacing: spacing)
-        return Layout(
-            spacing: spacing,
-            boardWidth: boardWidth,
-            columns: columns,
-            topPadding: isPadLike ? 14 : 10,
-            bottomPadding: isPadLike ? 28 : 20
-        )
-    }
-
-    private func gridColumns(for screenWidth: CGFloat, boardWidth: CGFloat, spacing: CGFloat) -> [GridItem] {
-        let isPadLike = screenWidth >= 700
-        let count: Int
-        if isPadLike {
-            let wide = screenWidth >= 1000
-            switch viewModel.difficulty {
-            case .facil:  count = wide ? 5 : 4
-            case .medio:  count = wide ? 6 : 5
-            case .dificil: count = wide ? 6 : 5
-            }
-        } else {
-            switch viewModel.difficulty {
-            case .facil:  count = 4
-            case .medio:  count = 4
-            case .dificil: count = 5
-            }
+    private var mainStack: some View {
+        VStack(spacing: 14) {
+            TopBarView(viewModel: viewModel, timerPulse: $timerPulse)
+            boardGrid
         }
-        let minCard = max(92, (boardWidth - CGFloat(count - 1) * spacing) / CGFloat(count))
-        return Array(repeating: GridItem(.flexible(minimum: minCard), spacing: spacing), count: count)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    // MARK: - Board
+    // MARK: board
 
-    private func boardView(layout: Layout) -> some View {
-        ScrollView {
-            LazyVGrid(columns: layout.columns, spacing: layout.spacing) {
+    private var boardGrid: some View {
+        let cols = columns
+        let spacing = cardSpacing
+        return ScrollView {
+            LazyVGrid(columns: cols, spacing: spacing) {
                 ForEach(viewModel.cards) { card in
-                    Button {
-                        viewModel.flip(card, efeitosSonorosAtivos: settings.efeitosSonorosAtivos)
-                    } label: {
-                        CardView(
-                            card: card,
-                            isMismatched: viewModel.mismatchedCardIDs.contains(card.id),
-                            isJustMatched: viewModel.matchedFlashCardIDs.contains(card.id)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(card.isMatched || viewModel.phase != .playing)
-                    .accessibilityLabel(card.isMatched ? "Par encontrado" : "Carta")
-                    .accessibilityHint("Toque para virar")
+                    cardCell(card)
                 }
             }
-            .frame(width: layout.boardWidth)
-            .padding(.top, layout.topPadding)
-            .padding(.bottom, layout.bottomPadding)
-            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
         }
     }
 
-    // MARK: - End State
+    private func cardCell(_ card: MemoryCard) -> some View {
+        let soundOn = settings.efeitosSonorosAtivos
+        return Button {
+            viewModel.flip(card, efeitosSonorosAtivos: soundOn)
+        } label: {
+            CardView(
+                card: card,
+                isMismatched: viewModel.mismatchedCardIDs.contains(card.id),
+                isJustMatched: viewModel.matchedFlashCardIDs.contains(card.id)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(card.isMatched || viewModel.phase != .playing)
+        .accessibilityLabel(card.isMatched ? "Par encontrado" : "Carta")
+        .accessibilityHint("Toque para virar")
+    }
 
-    private var endStateSheet: some View {
-        let isVictory = (viewModel.phase == .victory)
+    // MARK: end sheet
+
+    private var endSheet: some View {
+        let isVictory = viewModel.phase == .victory
         return VictoryView(
             state: isVictory ? .victory : .timeUp,
             difficultyTitle: viewModel.difficulty.titulo,
@@ -117,22 +91,36 @@ struct GameScreen: View {
             movesText: "\(viewModel.moves)",
             timeTitle: isVictory ? "Tempo restante" : "Tempo gasto",
             timeText: isVictory
-                ? formatTime(viewModel.timeRemaining)
-                : formatTime(viewModel.difficulty.tempoTotal),
-            onPlayAgain: {
-                showEndState = false
-                viewModel.newGame()
-            },
-            onGoHome: {
-                showEndState = false
-                dismiss()
-            }
+                ? timeString(viewModel.timeRemaining)
+                : timeString(viewModel.difficulty.tempoTotal),
+            onPlayAgain: { showEndState = false; viewModel.newGame() },
+            onGoHome: { showEndState = false; dismiss() }
         )
     }
 
-    // MARK: - Helpers
+    // MARK: helpers
 
-    private var shouldWarnTimeLow: Bool {
+    private var isPad: Bool { hSizeClass == .regular }
+
+    private var cardSpacing: CGFloat { isPad ? 18 : 12 }
+
+    private var columns: [GridItem] {
+        let count = columnCount
+        return Array(
+            repeating: GridItem(.flexible(minimum: 80), spacing: cardSpacing),
+            count: count
+        )
+    }
+
+    private var columnCount: Int {
+        switch viewModel.difficulty {
+        case .facil:   return isPad ? 4 : 4
+        case .medio:   return isPad ? 5 : 4
+        case .dificil: return isPad ? 5 : 5
+        }
+    }
+
+    private var timeLow: Bool {
         let threshold: Int
         switch viewModel.difficulty {
         case .facil:   threshold = 20
@@ -144,20 +132,18 @@ struct GameScreen: View {
             && viewModel.phase == .playing
     }
 
-    private var backgroundGradient: some View {
+    private func timeString(_ s: Int) -> String {
+        String(format: "%d:%02d", s / 60, s % 60)
+    }
+
+    private var bgGradient: some View {
         LinearGradient(
-            colors: [
-                Color(red: 0.94, green: 1.0, blue: 0.96),
-                Color(red: 0.93, green: 0.96, blue: 1.0)
-            ],
+            colors: [Color(red: 0.94, green: 1.0, blue: 0.96),
+                     Color(red: 0.93, green: 0.96, blue: 1.0)],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
         .ignoresSafeArea()
-    }
-
-    private func formatTime(_ seconds: Int) -> String {
-        String(format: "%d:%02d", seconds / 60, seconds % 60)
     }
 }
 
@@ -171,80 +157,102 @@ private struct TopBarView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            navigationRow
+            navRow
             pillsRow
-            bestScoreLine
+            scoreLine
                 .padding(.horizontal, 16)
         }
     }
 
-    private var navigationRow: some View {
+    // MARK: nav row
+
+    private var navRow: some View {
         HStack(spacing: 12) {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.headline.weight(.bold))
-                    .frame(width: 44, height: 44)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .accessibilityLabel("Voltar")
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(viewModel.theme.titulo) • \(viewModel.difficulty.titulo)")
-                    .font(.headline.weight(.semibold))
-                Text("Encontra todos os pares antes do tempo acabar")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
+            backButton
+            subtitleStack
             Spacer()
-
-            Button { viewModel.newGame() } label: {
-                Image(systemName: "arrow.counterclockwise")
-                    .font(.headline.weight(.bold))
-                    .frame(width: 44, height: 44)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .accessibilityLabel("Recomeçar")
+            restartButton
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
     }
 
+    private var backButton: some View {
+        Button(action: { dismiss() }) {
+            Image(systemName: "chevron.left")
+                .font(.headline.weight(.bold))
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial,
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .accessibilityLabel("Voltar")
+    }
+
+    private var restartButton: some View {
+        Button(action: { viewModel.newGame() }) {
+            Image(systemName: "arrow.counterclockwise")
+                .font(.headline.weight(.bold))
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial,
+                            in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .accessibilityLabel("Recomeçar")
+    }
+
+    private var subtitleStack: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(viewModel.theme.titulo + " • " + viewModel.difficulty.titulo)
+                .font(.headline.weight(.semibold))
+            Text("Encontra todos os pares antes do tempo acabar")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: pills row
+
     private var pillsRow: some View {
         HStack(spacing: 12) {
-            StatPill(title: "Jogadas", value: "\(viewModel.moves)", icon: "arrow.left.arrow.right")
+            StatPill(title: "Jogadas",
+                     value: "\(viewModel.moves)",
+                     icon: "arrow.left.arrow.right")
             TimerPillView(viewModel: viewModel, timerPulse: $timerPulse)
-            StatPill(
-                title: "Pares",
-                value: "\(viewModel.matchedPairs)/\(viewModel.difficulty.numeroDeCartas / 2)",
-                icon: "checkmark.circle.fill"
-            )
+            pairsPill
         }
         .padding(.horizontal, 16)
     }
 
-    private var bestScoreLine: some View {
-        Text(bestScoreText)
+    private var pairsPill: some View {
+        let total = viewModel.difficulty.numeroDeCartas / 2
+        let matched = viewModel.matchedPairs
+        return StatPill(title: "Pares",
+                        value: "\(matched)/\(total)",
+                        icon: "checkmark.circle.fill")
+    }
+
+    // MARK: score line
+
+    private var scoreLine: some View {
+        Text(scoreText)
             .font(.footnote.weight(.semibold))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 6)
     }
 
-    private var bestScoreText: String {
-        let score = ScoreStore.load(difficulty: viewModel.difficulty, theme: viewModel.theme)
-        let movesStr = score.bestMoves.map { "\($0) jogadas" }
-        let timeStr = score.bestTimeSeconds.map { formatTime($0) }
-        switch (movesStr, timeStr) {
-        case (nil, nil):          return " "
-        case let (m?, nil):       return "Melhor: \(m)"
-        case let (nil, t?):       return "Melhor tempo: \(t)"
-        case let (m?, t?):        return "Melhor: \(m) • Melhor tempo: \(t)"
-        }
+    private var scoreText: String {
+        let score = ScoreStore.load(difficulty: viewModel.difficulty,
+                                   theme: viewModel.theme)
+        let m = score.bestMoves.map { "\($0) jogadas" }
+        let t = score.bestTimeSeconds.map { timeString($0) }
+        if let m, let t { return "Melhor: \(m) • Melhor tempo: \(t)" }
+        if let m         { return "Melhor: \(m)" }
+        if let t         { return "Melhor tempo: \(t)" }
+        return " "
     }
 
-    private func formatTime(_ seconds: Int) -> String {
-        String(format: "%d:%02d", seconds / 60, seconds % 60)
+    private func timeString(_ s: Int) -> String {
+        String(format: "%d:%02d", s / 60, s % 60)
     }
 }
 
@@ -257,21 +265,18 @@ private struct StatPill: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.headline.weight(.bold))
+            Image(systemName: icon).font(.headline.weight(.bold))
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.title3.weight(.heavy))
+                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(value).font(.title3.weight(.heavy))
             }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(.ultraThinMaterial,
+                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 
@@ -282,15 +287,19 @@ private struct TimerPillView: View {
     @Binding var timerPulse: Bool
 
     var body: some View {
-        let isLow = shouldWarnTimeLow
+        pillContent
+            .scaleEffect(isLow && timerPulse ? 1.015 : 1.0)
+            .animation(pillAnimation, value: timerPulse)
+            .onAppear { if isLow { timerPulse = true } }
+            .onChange(of: isLow) { _, v in timerPulse = v }
+    }
+
+    private var pillContent: some View {
         HStack(spacing: 10) {
-            Image(systemName: "timer")
-                .font(.headline.weight(.bold))
+            Image(systemName: "timer").font(.headline.weight(.bold))
             VStack(alignment: .leading, spacing: 2) {
-                Text("Tempo")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Text(formatTime(viewModel.timeRemaining))
+                Text("Tempo").font(.caption.weight(.semibold)).foregroundStyle(.secondary)
+                Text(timeString(viewModel.timeRemaining))
                     .font(.system(.title3, design: .monospaced).weight(.heavy))
                     .foregroundStyle(isLow ? Color.orange : Color.primary)
             }
@@ -299,30 +308,24 @@ private struct TimerPillView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .background(timerBackground(isLow: isLow))
-        .scaleEffect(isLow && timerPulse ? 1.015 : 1.0)
-        .animation(timerAnimation(isLow: isLow), value: timerPulse)
-        .onAppear { if isLow { timerPulse = true } }
-        .onChange(of: isLow) { _, newValue in timerPulse = newValue }
+        .background(pillBackground)
     }
 
-    private func timerBackground(isLow: Bool) -> some View {
+    private var pillBackground: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
             .fill(.ultraThinMaterial)
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(
-                        isLow ? Color.orange.opacity(0.55) : Color.white.opacity(0.0),
-                        lineWidth: 2
-                    )
+                    .strokeBorder(isLow ? Color.orange.opacity(0.55) : Color.clear,
+                                  lineWidth: 2)
             )
     }
 
-    private func timerAnimation(isLow: Bool) -> Animation {
+    private var pillAnimation: Animation {
         isLow ? .easeInOut(duration: 1.0).repeatForever(autoreverses: true) : .default
     }
 
-    private var shouldWarnTimeLow: Bool {
+    private var isLow: Bool {
         let threshold: Int
         switch viewModel.difficulty {
         case .facil:   threshold = 20
@@ -334,8 +337,8 @@ private struct TimerPillView: View {
             && viewModel.phase == .playing
     }
 
-    private func formatTime(_ seconds: Int) -> String {
-        String(format: "%d:%02d", seconds / 60, seconds % 60)
+    private func timeString(_ s: Int) -> String {
+        String(format: "%d:%02d", s / 60, s % 60)
     }
 }
 
@@ -350,32 +353,16 @@ private struct CardView: View {
         GeometryReader { geo in
             let side = min(geo.size.width, geo.size.height)
             ZStack {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(card.isFaceUp || card.isMatched ? Color.white.opacity(0.90) : Color.blue.opacity(0.82))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .strokeBorder(borderColor.opacity(0.75), lineWidth: borderLineWidth)
-                    )
-                    .shadow(color: Color.black.opacity(0.10), radius: 14, x: 0, y: 8)
-
-                if card.isFaceUp || card.isMatched {
-                    Text(card.face)
-                        .font(.system(size: max(54, side * 0.68), weight: .heavy))
-                        .minimumScaleFactor(0.5)
-                        .lineLimit(1)
-                        .transition(.scale.combined(with: .opacity))
-                } else {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: max(24, side * 0.24), weight: .bold))
-                        .foregroundStyle(Color.white.opacity(0.92))
-                }
+                cardBackground
+                cardFace(side: side)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .aspectRatio(1, contentMode: .fit)
         .opacity(card.isMatched ? 0.55 : 1.0)
         .scaleEffect(isJustMatched ? 1.045 : (card.isMatched ? 0.985 : 1.0))
-        .rotation3DEffect(.degrees(card.isFaceUp || card.isMatched ? 0 : 180), axis: (x: 0, y: 1, z: 0))
+        .rotation3DEffect(.degrees(card.isFaceUp || card.isMatched ? 0 : 180),
+                          axis: (x: 0, y: 1, z: 0))
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: card.isFaceUp)
         .animation(.spring(response: 0.28, dampingFraction: 0.85), value: card.isMatched)
         .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isJustMatched)
@@ -384,13 +371,40 @@ private struct CardView: View {
         .accessibilityAddTraits(.isButton)
     }
 
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+            .fill(card.isFaceUp || card.isMatched
+                  ? Color.white.opacity(0.90)
+                  : Color.blue.opacity(0.82))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(borderColor.opacity(0.75), lineWidth: borderWidth)
+            )
+            .shadow(color: Color.black.opacity(0.10), radius: 14, x: 0, y: 8)
+    }
+
+    @ViewBuilder
+    private func cardFace(side: CGFloat) -> some View {
+        if card.isFaceUp || card.isMatched {
+            Text(card.face)
+                .font(.system(size: max(54, side * 0.68), weight: .heavy))
+                .minimumScaleFactor(0.5)
+                .lineLimit(1)
+                .transition(.scale.combined(with: .opacity))
+        } else {
+            Image(systemName: "sparkles")
+                .font(.system(size: max(24, side * 0.24), weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.92))
+        }
+    }
+
     private var borderColor: Color {
-        if isMismatched { return .orange }
+        if isMismatched              { return .orange }
         if card.isMatched || isJustMatched { return .green }
         return .white
     }
 
-    private var borderLineWidth: CGFloat {
+    private var borderWidth: CGFloat {
         (isMismatched || card.isMatched || isJustMatched) ? 4 : 2
     }
 }
